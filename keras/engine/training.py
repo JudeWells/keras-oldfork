@@ -733,8 +733,8 @@ class Model(Container):
 
     def _fit_loop(self, f, ins, out_labels=[], batch_size=32,
                   nb_epoch=100, verbose=1, callbacks=[],
-                  val_f=None, val_ins=None, shuffle=True,
-                  callback_metrics=[]):
+                  val_f=None, val_ins=None, test_f=None, test_ins=None,
+                  shuffle=True, callback_metrics=[]):
         '''Abstract fit function for f(ins).
         Assume that f returns a list, labeled by out_labels.
 
@@ -764,6 +764,12 @@ class Model(Container):
             if verbose:
                 print('Train on %d samples, validate on %d samples' %
                       (ins[0].shape[0], val_ins[0].shape[0]))
+        do_test = False
+        if test_f and test_ins:
+            do_test = True
+            if verbose:
+                print('Test on %d samples' %
+                      (test_ins[0].shape[0]))
 
         nb_train_sample = ins[0].shape[0]
         index_array = np.arange(nb_train_sample)
@@ -788,11 +794,13 @@ class Model(Container):
             'nb_sample': nb_train_sample,
             'verbose': verbose,
             'do_validation': do_validation,
+            'do_test': do_test,
             'metrics': callback_metrics,
         })
         callbacks.on_train_begin()
         callback_model.stop_training = False
         self.validation_data = val_ins
+        self.test_data = test_ins
 
         for epoch in range(nb_epoch):
             callbacks.on_epoch_begin(epoch)
@@ -839,6 +847,17 @@ class Model(Container):
                         # same labels assumed
                         for l, o in zip(out_labels, val_outs):
                             epoch_logs['val_' + l] = o
+                    # test
+                    if do_test:
+                        # replace with self._evaluate
+                        test_outs = self._test_loop(test_f, test_ins,
+                                                   batch_size=batch_size,
+                                                   verbose=0)
+                        if type(test_outs) != list:
+                            test_outs = [test_outs]
+                        # same labels assumed
+                        for l, o in zip(out_labels, test_outs):
+                            epoch_logs['test_' + l] = o
             callbacks.on_epoch_end(epoch, epoch_logs)
             if callback_model.stop_training:
                 break
@@ -981,7 +1000,7 @@ class Model(Container):
 
     def fit(self, x, y, batch_size=32, nb_epoch=10, verbose=1, callbacks=[],
             validation_split=0., validation_data=None, shuffle=True,
-            class_weight=None, sample_weight=None):
+            class_weight=None, sample_weight=None, test_data=None):
         '''Trains the model for a fixed number of epochs (iterations on a dataset).
 
         # Arguments
@@ -1018,6 +1037,9 @@ class Model(Container):
                 with shape (samples, sequence_length),
                 to apply a different weight to every timestep of every sample.
                 In this case you should make sure to specify sample_weight_mode="temporal" in compile().
+            test_data: addtional data on which to evaluate the loss and any model metrics
+                at the end of each epoch. The model will not be trained on this data.
+                This could be a tuple (x_val, y_val) or a tuple (val_x, val_y, val_sample_weights).
 
 
         # Returns
@@ -1030,6 +1052,31 @@ class Model(Container):
                                                            class_weight=class_weight,
                                                            check_batch_dim=False,
                                                            batch_size=batch_size)
+        # prepare test data
+        if test_data:
+            do_test = True
+            if len(test_data) == 2:
+                test_x, test_y = test_data
+                test_sample_weight = None
+            elif len(test_data) == 3:
+                test_x, test_y, test_sample_weight = test_data
+            else:
+                raise
+            test_x, test_y, test_sample_weights = self._standardize_user_data(test_x, test_y,
+                                                                           sample_weight=test_sample_weight,
+                                                                           check_batch_dim=False,
+                                                                           batch_size=batch_size)
+            self._make_test_function()
+            test_f = self.test_function
+            if self.uses_learning_phase and type(K.learning_phase()) is not int:
+                test_ins = test_x + test_y + test_sample_weights + [0.]
+            else:
+                test_ins = test_x + test_y + test_sample_weights
+        else:
+            do_test = False
+            test_f = None
+            test_ins = None
+
         # prepare validation data
         if validation_data:
             do_validation = True
@@ -1091,16 +1138,18 @@ class Model(Container):
             deduped_out_labels.append(new_label)
         out_labels = deduped_out_labels
 
+        callback_metrics = copy.copy(out_labels)
         if do_validation:
-            callback_metrics = copy.copy(out_labels) + ['val_' + n for n in out_labels]
-        else:
-            callback_metrics = copy.copy(out_labels)
+            callback_metrics = callback_metrics + ['val_' + n for n in out_labels]
+        if do_test:
+            callback_metrics = callback_metrics + ['test_' + n for n in out_labels]
 
         # delegate logic to _fit_loop
         return self._fit_loop(f, ins, out_labels=out_labels,
                               batch_size=batch_size, nb_epoch=nb_epoch,
                               verbose=verbose, callbacks=callbacks,
-                              val_f=val_f, val_ins=val_ins, shuffle=shuffle,
+                              val_f=val_f, val_ins=val_ins, test_f=test_f,
+                              test_ins=test_ins, shuffle=shuffle,
                               callback_metrics=callback_metrics)
 
     def evaluate(self, x, y, batch_size=32, verbose=1, sample_weight=None):
@@ -1276,7 +1325,8 @@ class Model(Container):
 
     def fit_generator(self, generator, samples_per_epoch, nb_epoch,
                       verbose=1, callbacks=[],
-                      validation_data=None, nb_val_samples=None,
+                      validation_data=None, test_data=None, nb_val_samples=None,
+                      nb_test_samples=None,
                       class_weight={}, max_q_size=10, nb_worker=1, pickle_safe=False):
         '''Fits the model on data generated batch-by-batch by
         a Python generator.
@@ -1302,8 +1352,15 @@ class Model(Container):
                 - a generator for the validation data
                 - a tuple (inputs, targets)
                 - a tuple (inputs, targets, sample_weights).
+            test_data: this can be either
+                - a generator for the validation data
+                - a tuple (inputs, targets)
+                - a tuple (inputs, targets, sample_weights).
             nb_val_samples: only relevant if `validation_data` is a generator.
                 number of samples to use from validation generator
+                at the end of every epoch.
+            nb_test_samples: only relevant if `test_data` is a generator.
+                number of samples to use from test generator
                 at the end of every epoch.
             class_weight: dictionary mapping class indices to a weight
                 for the class.
@@ -1338,8 +1395,9 @@ class Model(Container):
         epoch = 0
 
         do_validation = bool(validation_data)
+        do_test = bool(test_data)
         self._make_train_function()
-        if do_validation:
+        if do_validation or do_test:
             self._make_test_function()
 
         # python 2 has 'next', 3 has '__next__'
@@ -1349,6 +1407,11 @@ class Model(Container):
         if val_gen and not nb_val_samples:
             raise Exception('When using a generator for validation data, '
                             'you must specify a value for "nb_val_samples".')
+        test_gen = (hasattr(test_data, 'next') or
+                    hasattr(test_data, '__next__'))
+        if test_gen and not nb_test_samples:
+            raise Exception('When using a generator for test data, '
+                            'you must specify a value for "nb_test_samples".')
 
         out_labels = self.metrics_names
         callback_metrics = out_labels + ['val_' + n for n in out_labels]
@@ -1371,9 +1434,25 @@ class Model(Container):
             'nb_sample': samples_per_epoch,
             'verbose': verbose,
             'do_validation': do_validation,
+            'do_test': do_test,
             'metrics': callback_metrics,
         })
         callbacks.on_train_begin()
+
+        if do_test and not test_gen:
+            if len(test_data) == 2:
+                test_x, test_y = test_data
+                test_sample_weight = None
+            elif len(test_data) == 3:
+                test_x, test_y, test_sample_weight = test_data
+            else:
+                raise Exception('test_data should be a tuple '
+                                '(test_x, test_y, test_sample_weight) '
+                                'or (test_x, test_y). Found: ' + str(test_data))
+            test_x, test_y, test_sample_weights = self._standardize_user_data(test_x, test_y, test_sample_weight)
+            self.test_data = test_x + [test_y, test_sample_weights]
+        else:
+            self.test_data = None
 
         if do_validation and not val_gen:
             if len(validation_data) == 2:
@@ -1479,6 +1558,24 @@ class Model(Container):
                     # same labels assumed
                     for l, o in zip(out_labels, val_outs):
                         epoch_logs['val_' + l] = o
+
+                if samples_seen >= samples_per_epoch and do_test:
+                    if test_gen:
+                        test_outs = self.evaluate_generator(test_data,
+                                                           nb_test_samples,
+                                                           max_q_size=max_q_size)
+                    else:
+                        # no need for try/except because
+                        # data has already been validated
+                        test_outs = self.evaluate(test_x, test_y,
+                                                 batch_size=batch_size,
+                                                 sample_weight=test_sample_weights,
+                                                 verbose=0)
+                    if type(test_outs) is not list:
+                        test_outs = [test_outs]
+                    # same labels assumed
+                    for l, o in zip(out_labels, test_outs):
+                        epoch_logs['test_' + l] = o
 
             callbacks.on_epoch_end(epoch, epoch_logs)
             epoch += 1

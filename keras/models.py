@@ -14,6 +14,10 @@ from .legacy.models import Graph
 
 
 def save_model(model, filepath, overwrite=True):
+    f = h5py.File(filepath, 'w')
+    save_model_to_hdf5_group(model, f, overwrite)
+
+def save_model_to_hdf5_group(model, f, overwrite=True):
 
     def get_json_type(obj):
         # if obj is a serializable Keras class instance
@@ -45,7 +49,6 @@ def save_model(model, filepath, overwrite=True):
         if not proceed:
             return
 
-    f = h5py.File(filepath, 'w')
     f.attrs['keras_version'] = str(keras_version).encode('utf8')
     f.attrs['model_config'] = json.dumps({
         'class_name': model.__class__.__name__,
@@ -95,7 +98,11 @@ def save_model(model, filepath, overwrite=True):
 
 
 def load_model(filepath, custom_objects={}):
+    import h5py
+    f = h5py.File(filepath, mode='r')
+    return load_model_from_hdf5_group(f, custom_objects)
 
+def load_model_from_hdf5_group(f, custom_objects={}):
     def deserialize(obj):
         if type(obj) is list:
             deserialized = []
@@ -116,9 +123,6 @@ def load_model(filepath, custom_objects={}):
         if obj in custom_objects:
             return custom_objects[obj]
         return obj
-
-    import h5py
-    f = h5py.File(filepath, mode='r')
 
     # instantiate model
     model_config = f.attrs.get('model_config')
@@ -555,7 +559,7 @@ class Sequential(Model):
 
     def fit(self, x, y, batch_size=32, nb_epoch=10, verbose=1, callbacks=[],
             validation_split=0., validation_data=None, shuffle=True,
-            class_weight=None, sample_weight=None, **kwargs):
+            class_weight=None, sample_weight=None, test_data=None, **kwargs):
         '''Trains the model for a fixed number of epochs.
 
         # Arguments
@@ -589,6 +593,8 @@ class Sequential(Model):
                 to apply a different weight to every timestep of every sample.
                 In this case you should make sure to specify
                 sample_weight_mode="temporal" in compile().
+            test_data: tuple (X, y) to be used as held-out
+                test data. In case you want to look at history over training.
 
         # Returns
             A `History` object. Its `History.history` attribute is
@@ -617,7 +623,8 @@ class Sequential(Model):
                               validation_data=validation_data,
                               shuffle=shuffle,
                               class_weight=class_weight,
-                              sample_weight=sample_weight)
+                              sample_weight=sample_weight,
+                              test_data=test_data)
 
     def evaluate(self, x, y, batch_size=32, verbose=1,
                  sample_weight=None, **kwargs):

@@ -307,6 +307,71 @@ class ModelCheckpoint(Callback):
                 self.model.save(filepath, overwrite=True)
 
 
+class ModelCheckpointInMemory(Callback):
+    '''Save the model after every epoch in memory.
+
+    # Arguments
+        monitor: quantity to monitor.
+        verbose: verbosity mode, 0 or 1.
+        mode: one of {auto, min, max}.
+            If `save_best_only=True`, the decision
+            to overwrite the current save file is made
+            based on either the maximization or the
+            minimization of the monitored quantity. For `val_acc`,
+            this should be `max`, for `val_loss` this should
+            be `min`, etc. In `auto` mode, the direction is
+            automatically inferred from the name of the monitored quantity.
+
+    '''
+    def __init__(self, monitor='val_loss', verbose=0, mode='auto'):
+        super(ModelCheckpointInMemory, self).__init__()
+        self.monitor = monitor
+        self.verbose = verbose
+        import h5py
+        self.best_model = h5py.File("/dev/null", driver = 'core',
+                backing_store = False)
+        self.best_epoch = None
+
+        if mode not in ['auto', 'min', 'max']:
+            warnings.warn('ModelCheckpoint mode %s is unknown, '
+                          'fallback to auto mode.' % (mode),
+                          RuntimeWarning)
+            mode = 'auto'
+
+        if mode == 'min':
+            self.monitor_op = np.less
+            self.best = np.Inf
+        elif mode == 'max':
+            self.monitor_op = np.greater
+            self.best = -np.Inf
+        else:
+            if 'acc' in self.monitor:
+                self.monitor_op = np.greater
+                self.best = -np.Inf
+            else:
+                self.monitor_op = np.less
+                self.best = np.Inf
+
+    def on_epoch_end(self, epoch, logs={}):
+        current = logs.get(self.monitor)
+        if current is None:
+            warnings.warn('Can save best model only with %s available, '
+                          'skipping.' % (self.monitor), RuntimeWarning)
+        else:
+            if self.monitor_op(current, self.best):
+                if self.verbose > 0:
+                    print('Epoch %05d: %s improved from %0.5f to %0.5f,'
+                          ' saving model'
+                          % (epoch, self.monitor, self.best, current))
+                self.best = current
+                self.best_model = self.model.get_weights()
+                self.best_epoch = epoch
+            else:
+                if self.verbose > 0:
+                    print('Epoch %05d: %s did not improve' %
+                          (epoch, self.monitor))
+
+
 class EarlyStopping(Callback):
     '''Stop training when a monitored quantity has stopped improving.
 
