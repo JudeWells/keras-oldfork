@@ -1542,6 +1542,7 @@ class Model(Container):
                                   'Set `samples_per_epoch` correctly '
                                   'to avoid this warning.')
                 if samples_seen >= samples_per_epoch and do_validation:
+                    print("evaluating bs {0}".format(batch_size))
                     if val_gen:
                         val_outs = self.evaluate_generator(validation_data,
                                                            nb_val_samples,
