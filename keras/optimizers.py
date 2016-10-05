@@ -565,6 +565,94 @@ class Nadam(Optimizer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+class ARMSProp(Optimizer):
+    '''ARMSProp optimizer.
+
+    Default parameters follow those provided in the original paper.
+
+    # Arguments
+        lr: float >= 0. Learning rate.
+        beta_1/beta_2: floats, 0 < beta < 1. Generally close to 1.
+        epsilon: float >= 0. Fuzz factor.
+
+    '''
+    def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999,
+                 epsilon=1e-8, decay=0., eta_plus = 1.1, eta_minus = 0.9,
+                 **kwargs):
+        super(ARMSProp, self).__init__(**kwargs)
+        self.__dict__.update(locals())
+        self.iterations = K.variable(0)
+        self.lr = K.variable(lr)
+        self.beta_1 = K.variable(beta_1)
+        self.beta_2 = K.variable(beta_2)
+        self.decay = K.variable(decay)
+        self.eta_plus = K.variable(eta_plus)
+        self.eta_minuse = K.variable(eta_minus)
+        self.inital_decay = decay
+
+    def get_updates(self, params, constraints, loss):
+        grads = self.get_gradients(loss, params)
+        previous_loss = K.zeros(K.get_variable_shape(loss))
+        self.updates = [K.update_add(self.iterations, 1)]
+
+        lr = self.lr
+        if self.inital_decay > 0:
+            lr *= (1. / (1. + self.decay * self.iterations))
+
+        t = self.iterations + 1
+        lr_t = lr * K.sqrt(1. - K.pow(self.beta_2, t)) / (1. - K.pow(self.beta_1, t))
+
+        shapes = [K.get_variable_shape(p) for p in params]
+        prev_grads = [K.zeros(shape) for shape in shapes]
+        ms = [K.zeros(shape) for shape in shapes]
+        vs = [K.zeros(shape) for shape in shapes]
+        accs = [K.ones(shape) for shape in shapes]
+        self.weights = [self.iterations] + ms + vs
+
+
+        #TODO: save previous gradient
+        #TODO: adapt accs based on gradient change
+        #TODO: eta_plus, eta_minus, eta_min, eta_max
+        for p, g, m, v, a, pg in zip(params, grads, ms, vs, accs, prev_grads):
+            m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
+            v_t = (self.beta_2 * v) + (1. - self.beta_2) * K.square(g)
+            p_t = p - lr_t * m_t * a / (K.sqrt(v_t) + self.epsilon)
+
+            change = pg * g
+            change_below_zero = K.lt(change,0.)
+            change_above_zero = K.gt(change,0.)
+            cost_increased = K.gt(loss,previous_loss)
+            n_a = K.switch(
+                change_below_zero,
+                accs * self.eta_minus,
+                K.switch(change_above_zero,
+                    a * self.eta_plus,
+                    a
+                )
+               )
+            self.updates.append(K.update(m, m_t))
+            self.updates.append(K.update(v, v_t))
+
+            new_p = p_t
+            # apply constraints
+            if p in constraints:
+                c = constraints[p]
+                new_p = c(new_p)
+            self.updates.append(K.update(p, new_p))
+            self.updates.append(K.update(pg, p))
+            self.updates.append(K.update(a, n_a))
+        self.updates.append(K.update(previous_loss,loss))
+        return self.updates
+
+    def get_config(self):
+        config = {'lr': float(K.get_value(self.lr)),
+                  'beta_1': float(K.get_value(self.beta_1)),
+                  'beta_2': float(K.get_value(self.beta_2)),
+                  'epsilon': self.epsilon}
+        base_config = super(Adam, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
 # aliases
 sgd = SGD
 rmsprop = RMSprop
