@@ -579,6 +579,7 @@ class ARMSprop(Optimizer):
     '''
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999,
                  epsilon=1e-8, decay=0., eta_plus = 1.1, eta_minus = 0.9,
+                 eta_min=0.1, eta_max=10.0,
                  **kwargs):
         super(ARMSprop, self).__init__(**kwargs)
         self.__dict__.update(locals())
@@ -588,7 +589,9 @@ class ARMSprop(Optimizer):
         self.beta_2 = K.variable(beta_2)
         self.decay = K.variable(decay)
         self.eta_plus = K.variable(eta_plus)
-        self.eta_minuse = K.variable(eta_minus)
+        self.eta_minus = K.variable(eta_minus)
+        self.eta_min = K.variable(eta_min)
+        self.eta_max = K.variable(eta_max)
         self.inital_decay = decay
 
     def get_updates(self, params, constraints, loss):
