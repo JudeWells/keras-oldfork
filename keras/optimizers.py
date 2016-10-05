@@ -19,6 +19,7 @@ def optimizer_from_config(config, custom_objects={}):
         'adam': Adam,
         'adamax': Adamax,
         'nadam': Nadam,
+        'armsprop': ARMSprop,
     }
     class_name = config['class_name']
     if class_name in custom_objects:
@@ -565,8 +566,8 @@ class Nadam(Optimizer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-class ARMSProp(Optimizer):
-    '''ARMSProp optimizer.
+class ARMSprop(Optimizer):
+    '''ARMSprop optimizer.
 
     Default parameters follow those provided in the original paper.
 
@@ -579,7 +580,7 @@ class ARMSProp(Optimizer):
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999,
                  epsilon=1e-8, decay=0., eta_plus = 1.1, eta_minus = 0.9,
                  **kwargs):
-        super(ARMSProp, self).__init__(**kwargs)
+        super(ARMSprop, self).__init__(**kwargs)
         self.__dict__.update(locals())
         self.iterations = K.variable(0)
         self.lr = K.variable(lr)
@@ -592,7 +593,6 @@ class ARMSProp(Optimizer):
 
     def get_updates(self, params, constraints, loss):
         grads = self.get_gradients(loss, params)
-        previous_loss = K.zeros(K.get_variable_shape(loss))
         self.updates = [K.update_add(self.iterations, 1)]
 
         lr = self.lr
@@ -610,21 +610,18 @@ class ARMSProp(Optimizer):
         self.weights = [self.iterations] + ms + vs
 
 
-        #TODO: save previous gradient
-        #TODO: adapt accs based on gradient change
-        #TODO: eta_plus, eta_minus, eta_min, eta_max
+        #TODO: eta_min, eta_max
         for p, g, m, v, a, pg in zip(params, grads, ms, vs, accs, prev_grads):
             m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
             v_t = (self.beta_2 * v) + (1. - self.beta_2) * K.square(g)
             p_t = p - lr_t * m_t * a / (K.sqrt(v_t) + self.epsilon)
 
             change = pg * g
-            change_below_zero = K.lt(change,0.)
-            change_above_zero = K.gt(change,0.)
-            cost_increased = K.gt(loss,previous_loss)
+            change_below_zero = K.lesser(change,0.)
+            change_above_zero = K.greater(change,0.)
             n_a = K.switch(
                 change_below_zero,
-                accs * self.eta_minus,
+                a * self.eta_minus,
                 K.switch(change_above_zero,
                     a * self.eta_plus,
                     a
@@ -641,7 +638,6 @@ class ARMSProp(Optimizer):
             self.updates.append(K.update(p, new_p))
             self.updates.append(K.update(pg, p))
             self.updates.append(K.update(a, n_a))
-        self.updates.append(K.update(previous_loss,loss))
         return self.updates
 
     def get_config(self):
@@ -661,6 +657,7 @@ adadelta = Adadelta
 adam = Adam
 adamax = Adamax
 nadam = Nadam
+armsprop = ARMSprop
 
 
 def get(identifier, kwargs=None):
