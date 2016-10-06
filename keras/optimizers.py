@@ -579,7 +579,7 @@ class ARMSprop(Optimizer):
     '''
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999,
                  epsilon=1e-8, decay=0., eta_plus = 1.1, eta_minus = 0.9,
-                 eta_min=0.1, eta_max=10.0,
+                 eta_min=0.1, eta_max=10.0, beta_a = 0.9,
                  **kwargs):
         super(ARMSprop, self).__init__(**kwargs)
         self.__dict__.update(locals())
@@ -587,11 +587,12 @@ class ARMSprop(Optimizer):
         self.lr = K.variable(lr)
         self.beta_1 = K.variable(beta_1)
         self.beta_2 = K.variable(beta_2)
+        self.beta_a = K.variable(beta_a)
         self.decay = K.variable(decay)
         self.eta_plus = K.variable(eta_plus)
         self.eta_minus = K.variable(eta_minus)
-        self.eta_min = K.variable(eta_min)
-        self.eta_max = K.variable(eta_max)
+        self.eta_min = eta_min
+        self.eta_max = eta_max
         self.inital_decay = decay
 
     def get_updates(self, params, constraints, loss):
@@ -610,14 +611,12 @@ class ARMSprop(Optimizer):
         ms = [K.zeros(shape) for shape in shapes]
         vs = [K.zeros(shape) for shape in shapes]
         accs = [K.ones(shape) for shape in shapes]
+        acc_vs = [K.ones(shape) for shape in shapes]
         self.weights = [self.iterations] + ms + vs
 
 
         #TODO: eta_min, eta_max
-        for p, g, m, v, a, pg in zip(params, grads, ms, vs, accs, prev_grads):
-            m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
-            v_t = (self.beta_2 * v) + (1. - self.beta_2) * K.square(g)
-            p_t = p - lr_t * m_t * a / (K.sqrt(v_t) + self.epsilon)
+        for p, g, m, v, a, av, pg in zip(params, grads, ms, vs, accs, acc_vs, prev_grads):
 
             change = pg * g
             change_below_zero = K.lesser(change,0.)
@@ -625,11 +624,14 @@ class ARMSprop(Optimizer):
             n_a = K.switch(
                 change_below_zero,
                 a * self.eta_minus,
-                K.switch(change_above_zero,
-                    a * self.eta_plus,
-                    a
-                )
-               )
+                K.switch(change_above_zero, a * self.eta_plus, a)
+            )
+            a_clipped = K.clip(n_a, self.eta_min, self.eta_max)
+            acc_mean = 0.9 * av + 0.1 * a_clipped
+            m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
+            v_t = (self.beta_2 * v) + (1. - self.beta_2) * K.square(g)
+            p_t = p - lr_t * m_t * acc_mean / (K.sqrt(v_t) + self.epsilon)
+
             self.updates.append(K.update(m, m_t))
             self.updates.append(K.update(v, v_t))
 
@@ -641,12 +643,18 @@ class ARMSprop(Optimizer):
             self.updates.append(K.update(p, new_p))
             self.updates.append(K.update(pg, p))
             self.updates.append(K.update(a, n_a))
+            self.updates.append(K.update(av, acc_mean))
         return self.updates
 
     def get_config(self):
         config = {'lr': float(K.get_value(self.lr)),
                   'beta_1': float(K.get_value(self.beta_1)),
                   'beta_2': float(K.get_value(self.beta_2)),
+                  'beta_a': float(K.get_value(self.beta_a)),
+                  'eta_plus': float(K.get_value(self.eta_plus)),
+                  'eta_minus': float(K.get_value(self.eta_minus)),
+                  'eta_min': float(K.get_value(self.eta_min)),
+                  'eta_max': float(K.get_value(self.eta_max)),
                   'epsilon': self.epsilon}
         base_config = super(Adam, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
