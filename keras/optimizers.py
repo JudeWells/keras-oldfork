@@ -578,8 +578,8 @@ class ARMSprop(Optimizer):
 
     '''
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999,
-                 epsilon=1e-8, decay=0., eta_plus = 1.1, eta_minus = 0.9,
-                 eta_min=0.1, eta_max=10.0, beta_a = 0.9,
+                 epsilon=1e-11, decay=0., eta_plus = 1.1, eta_minus = 0.9,
+                 eta_min=1e-2, eta_max=1e2, beta_a = 0.9,
                  **kwargs):
         super(ARMSprop, self).__init__(**kwargs)
         self.__dict__.update(locals())
@@ -608,42 +608,48 @@ class ARMSprop(Optimizer):
 
         shapes = [K.get_variable_shape(p) for p in params]
         prev_grads = [K.zeros(shape) for shape in shapes]
+        prev_param = [K.zeros(shape) for shape in shapes]
         ms = [K.zeros(shape) for shape in shapes]
         vs = [K.zeros(shape) for shape in shapes]
         accs = [K.ones(shape) for shape in shapes]
+        acc_ms = [K.ones(shape) for shape in shapes]
         acc_vs = [K.ones(shape) for shape in shapes]
         self.weights = [self.iterations] + ms + vs
 
 
-        #TODO: eta_min, eta_max
-        for p, g, m, v, a, av, pg in zip(params, grads, ms, vs, accs, acc_vs, prev_grads):
+        for p, g, m, v, a, am, av, pg, pp in zip(params, grads, ms, vs, accs,
+                acc_ms, acc_vs, prev_grads, prev_param):
 
             change = pg * g
             change_below_zero = K.lesser(change,0.)
             change_above_zero = K.greater(change,0.)
-            n_a = K.switch(
+            a_t = K.switch(
                 change_below_zero,
                 a * self.eta_minus,
                 K.switch(change_above_zero, a * self.eta_plus, a)
             )
-            a_clipped = K.clip(n_a, self.eta_min, self.eta_max)
-            acc_mean = 0.9 * av + 0.1 * a_clipped
+            a_clipped = K.clip(a_t, self.eta_min, self.eta_max)
             m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
             v_t = (self.beta_2 * v) + (1. - self.beta_2) * K.square(g)
-            p_t = p - lr_t * m_t * acc_mean / (K.sqrt(v_t) + self.epsilon)
-
-            self.updates.append(K.update(m, m_t))
-            self.updates.append(K.update(v, v_t))
+            am_t = (self.beta_a * am) + (1. - self.beta_a) * a_clipped
+            av_t = (self.beta_a * av) + (1. - self.beta_a) * K.square(a_clipped)
+            a_rate = a_clipped / am_t
+            p_t = p - lr_t * a_rate * g / (K.sqrt(v_t) + self.epsilon)
 
             new_p = p_t
             # apply constraints
             if p in constraints:
                 c = constraints[p]
                 new_p = c(new_p)
+
+            self.updates.append(K.update(m, m_t))
+            self.updates.append(K.update(v, v_t))
             self.updates.append(K.update(p, new_p))
             self.updates.append(K.update(pg, p))
-            self.updates.append(K.update(a, n_a))
-            self.updates.append(K.update(av, acc_mean))
+            self.updates.append(K.update(a, a_t))
+            self.updates.append(K.update(am, am_t))
+            self.updates.append(K.update(av, av_t))
+            self.updates.append(K.update(pp, p))
         return self.updates
 
     def get_config(self):
