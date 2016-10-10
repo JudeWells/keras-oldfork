@@ -1416,7 +1416,11 @@ class Model(Container):
                             'you must specify a value for "nb_test_samples".')
 
         out_labels = self.metrics_names
-        callback_metrics = out_labels + ['val_' + n for n in out_labels]
+        callback_metrics = out_labels
+        if do_validation:
+            callback_metrics = callback_metrics + ['val_' + n for n in out_labels]
+        if do_test:
+            callback_metrics = callback_metrics + ['test_' + n for n in out_labels]
 
         # prepare callbacks
         self.history = cbks.History()
