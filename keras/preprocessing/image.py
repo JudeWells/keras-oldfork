@@ -185,6 +185,50 @@ def list_pictures(directory, ext='jpg|jpeg|bmp|png'):
             if os.path.isfile(os.path.join(directory, f)) and re.match('([\w]+\.(?:' + ext + '))', f)]
 
 
+#import numpy as np
+#from scipy.ndimage.interpolation import map_coordinates
+#from scipy.ndimage.filters import gaussian_filter
+
+def elastic_transform(image, alpha, sigma, random_state=None):
+    """Elastic deformation of images as described in [Simard2003]_.
+    .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
+       Convolutional Neural Networks applied to Visual Document Analysis", in
+       Proc. of the International Conference on Document Analysis and
+       Recognition, 2003.
+    """
+    assert len(image.shape)==2
+    if random_state is None:
+        random_state = np.random.RandomState(None)
+    shape = image.shape
+    dx = gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0) * alpha
+    dy = gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0) * alpha
+    x, y = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), indexing='ij')
+    indices = np.reshape(x+dx, (-1, 1)), np.reshape(y+dy, (-1, 1))
+    return map_coordinates(image, indices, order=1).reshape(shape)
+
+def random_crop(image, crop_size):
+    height, width = image.shape[1:]
+    dy, dx = crop_size
+    if width < dx or height < dy:
+        return None
+    x = np.random.randint(0, width - dx + 1)
+    y = np.random.randint(0, height - dy + 1)
+    return image[:, y:(y+dy), x:(x+dx)]
+
+def random_pad(image, new_size):
+    height, width = image.shape[1:]
+    new_height, new_width = new_size
+    if new_width < width or new_height < height:
+        return None
+    dx = new_width - width
+    dy = new_height - height
+    left_pad = np.random.randint(0, dx)
+    right_pad = dx - left_pad
+    top_pad = np.random.randint(0, dy)
+    bottom_pad = dy - top_pad
+    return np.lib.pad(image, ((0,0),(left_pad,right_pad),(top_pad,bottom_pad)),
+     'constant',constant_values=0)
+
 class ImageDataGenerator(object):
     '''Generate minibatches with
     real-time data augmentation.
@@ -236,6 +280,9 @@ class ImageDataGenerator(object):
                  horizontal_flip=False,
                  vertical_flip=False,
                  rescale=None,
+                 elastic_transform=None,
+                 pad=None,
+                 crop=None,
                  dim_ordering='default'):
         if dim_ordering == 'default':
             dim_ordering = K.image_dim_ordering()
@@ -245,6 +292,11 @@ class ImageDataGenerator(object):
         self.principal_components = None
         self.rescale = rescale
 
+        self.pad = pad
+        self.crop = crop
+
+        if self.elastic_transform is None or len(self.elastic_transform) == 2:
+            self.elastic_transform = elastic_transform
         if dim_ordering not in {'tf', 'th'}:
             raise Exception('dim_ordering should be "tf" (channel after row and '
                             'column) or "th" (channel before row and column). '
@@ -370,6 +422,16 @@ class ImageDataGenerator(object):
         if self.vertical_flip:
             if np.random.random() < 0.5:
                 x = flip_axis(x, img_row_index)
+
+        if self.elastic_transform is not None:
+            x = elastic_transform(x, self.elastic_transform['alpha'],
+                                     self.elastic_transform['sigma'])
+
+        if self.pad is not None:
+            x = random_pad(x, self.pad)
+
+        if self.crop is not None:
+            x = random_crop(x, self.crop)
 
         # TODO:
         # channel-wise normalization
