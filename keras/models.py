@@ -4,6 +4,7 @@ import copy
 import json
 import os
 import numpy as np
+import h5py
 
 from . import backend as K
 from .utils.io_utils import ask_to_proceed_with_overwrite
