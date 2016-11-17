@@ -19,7 +19,7 @@ def optimizer_from_config(config, custom_objects={}):
         'adam': Adam,
         'adamax': Adamax,
         'nadam': Nadam,
-        'armsprop': ARMSprop,
+        'wame': WAME,
     }
     class_name = config['class_name']
     if class_name in custom_objects:
@@ -566,8 +566,8 @@ class Nadam(Optimizer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-class ARMSprop(Optimizer):
-    '''ARMSprop optimizer.
+class WAME(Optimizer):
+    '''WAME optimizer.
 
     Default parameters follow those provided in the original paper.
 
@@ -578,10 +578,10 @@ class ARMSprop(Optimizer):
 
     '''
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999,
-                 epsilon=1e-11, decay=0., eta_plus = 1.1, eta_minus = 0.9,
+                 epsilon=1e-11, decay=0., eta_plus = 1.2, eta_minus = 0.1,
                  eta_min=1e-2, eta_max=1e2, beta_a = 0.9,
                  **kwargs):
-        super(ARMSprop, self).__init__(**kwargs)
+        super(WAME, self).__init__(**kwargs)
         self.__dict__.update(locals())
         self.iterations = K.variable(0)
         self.lr = K.variable(lr)
@@ -629,26 +629,22 @@ class ARMSprop(Optimizer):
                 K.switch(change_above_zero, a * self.eta_plus, a)
             )
             a_clipped = K.clip(a_t, self.eta_min, self.eta_max)
-            m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
             v_t = (self.beta_2 * v) + (1. - self.beta_2) * K.square(g)
             am_t = (self.beta_a * am) + (1. - self.beta_a) * a_clipped
-            av_t = (self.beta_a * av) + (1. - self.beta_a) * K.square(a_clipped)
             a_rate = a_clipped / am_t
             p_t = p - lr_t * a_rate * g / (K.sqrt(v_t) + self.epsilon)
 
-            new_p = p_t
+            new_p = p_t #K.switch(change_below_zero, pp, p_t)
             # apply constraints
             if p in constraints:
                 c = constraints[p]
                 new_p = c(new_p)
 
-            self.updates.append(K.update(m, m_t))
             self.updates.append(K.update(v, v_t))
             self.updates.append(K.update(p, new_p))
             self.updates.append(K.update(pg, p))
             self.updates.append(K.update(a, a_t))
             self.updates.append(K.update(am, am_t))
-            self.updates.append(K.update(av, av_t))
             self.updates.append(K.update(pp, p))
         return self.updates
 
@@ -662,7 +658,7 @@ class ARMSprop(Optimizer):
                   'eta_min': float(K.get_value(self.eta_min)),
                   'eta_max': float(K.get_value(self.eta_max)),
                   'epsilon': self.epsilon}
-        base_config = super(Adam, self).get_config()
+        base_config = super(WAME, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -674,7 +670,7 @@ adadelta = Adadelta
 adam = Adam
 adamax = Adamax
 nadam = Nadam
-armsprop = ARMSprop
+wame = WAME
 
 
 def get(identifier, kwargs=None):
