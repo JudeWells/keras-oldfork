@@ -1266,6 +1266,15 @@ class Model(Container):
         return self._predict_loop(f, ins,
                                   batch_size=batch_size, verbose=verbose)
 
+    def predict_proba(self, x, batch_size=32, verbose=1):
+        preds = self.predict(x, batch_size, verbose)
+        if preds.min() < 0. or preds.max() > 1.:
+            warnings.warn('Network returning invalid probability values. '
+                          'The last layer might not normalize predictions '
+                          'into probabilities '
+                          '(like softmax or sigmoid would).')
+        return preds
+
     def train_on_batch(self, x, y,
                        sample_weight=None, class_weight=None):
         '''Runs a single gradient update on a single batch of data.
