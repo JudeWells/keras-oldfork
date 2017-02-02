@@ -802,7 +802,7 @@ class Model(Container):
                   nb_epoch=100, verbose=1, callbacks=None,
                   val_f=None, val_ins=None, test_f=None, test_ins=None,
                   shuffle=True, callback_metrics=None, initial_epoch=0):
-        '''Abstract fit function for f(ins).
+        """Abstract fit function for f(ins).
         Assume that f returns a list, labeled by out_labels.
 
         # Arguments
@@ -1072,7 +1072,7 @@ class Model(Container):
     def fit(self, x, y, batch_size=32, nb_epoch=10, verbose=1, callbacks=None,
             validation_split=0., validation_data=None, shuffle=True,
             class_weight=None, sample_weight=None, test_data=None, initial_epoch=0):
-        '''Trains the model for a fixed number of epochs (iterations on a dataset).
+        """Trains the model for a fixed number of epochs (iterations on a dataset).
 
         # Arguments
             x: Numpy array of training data,
