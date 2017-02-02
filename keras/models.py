@@ -609,7 +609,7 @@ class Sequential(Model):
             validation_split=0., validation_data=None, shuffle=True,
             class_weight=None, sample_weight=None, test_data=None,
             initial_epoch=0, **kwargs):
-        '''Trains the model for a fixed number of epochs.
+        """Trains the model for a fixed number of epochs.
 
         # Arguments
             x: input data, as a Numpy array or list of Numpy arrays
