@@ -199,9 +199,9 @@ def model_from_config(config, custom_objects=None):
 
 
 def model_from_yaml(yaml_string, custom_objects=None):
-    '''Parses a yaml model configuration file
+    """Parses a yaml model configuration file
     and returns a model instance.
-    '''
+    """
     import yaml
     from keras.utils.layer_utils import layer_from_config
     config = yaml.load(yaml_string)
@@ -209,9 +209,9 @@ def model_from_yaml(yaml_string, custom_objects=None):
 
 
 def model_from_json(json_string, custom_objects=None):
-    '''Parses a JSON model configuration file
+    """Parses a JSON model configuration file
     and returns a model instance.
-    '''
+    """
     import json
     from keras.utils.layer_utils import layer_from_config
     config = json.loads(json_string)
@@ -219,7 +219,7 @@ def model_from_json(json_string, custom_objects=None):
 
 
 class Sequential(Model):
-    '''Linear stack of layers.
+    """Linear stack of layers.
 
     # Arguments
         layers: list of layers to add to the model.
@@ -253,7 +253,8 @@ class Sequential(Model):
             model.add(Dense(32, batch_input_shape=(None, 500)))
             model.add(Dense(32))
         ```
-    '''
+    """
+
     def __init__(self, layers=None, name=None):
         self.layers = []  # stack of layers
         self.model = None  # internal Model instance
@@ -277,11 +278,11 @@ class Sequential(Model):
                 self.add(layer)
 
     def add(self, layer):
-        '''Adds a layer instance on top of the layer stack.
+        """Adds a layer instance on top of the layer stack.
 
         # Arguments
             layer: layer instance.
-        '''
+        """
         if not isinstance(layer, Layer):
             raise TypeError('The added layer must be '
                             'an instance of class Layer. '
@@ -349,8 +350,8 @@ class Sequential(Model):
         self._flattened_layers = None
 
     def pop(self):
-        '''Removes the last layer in the model.
-        '''
+        """Removes the last layer in the model.
+        """
         if not self.layers:
             raise TypeError('There are no layers in the model.')
 
@@ -369,7 +370,7 @@ class Sequential(Model):
         self._flattened_layers = None
 
     def get_layer(self, name=None, index=None):
-        '''Returns a layer based on either its name (unique)
+        """Returns a layer based on either its name (unique)
         or its index in the graph. Indices are based on
         order of horizontal graph traversal (bottom-up).
 
@@ -379,7 +380,7 @@ class Sequential(Model):
 
         # Returns
             A layer instance.
-        '''
+        """
         if not self.built:
             self.build()
         return self.model.get_layer(name, index)
@@ -524,9 +525,9 @@ class Sequential(Model):
         return self._gather_dict_attr('constraints')
 
     def get_weights(self):
-        '''Returns the weights of the model,
+        """Returns the weights of the model,
         as a flat list of Numpy arrays.
-        '''
+        """
         # support for legacy behavior
         weights = []
         for layer in self.flattened_layers:
@@ -534,11 +535,11 @@ class Sequential(Model):
         return weights
 
     def set_weights(self, weights):
-        '''Sets the weights of the model.
+        """Sets the weights of the model.
         The `weights` argument should be a list
         of Numpy arrays with shapes and types matching
         the output of `model.get_weights()`.
-        '''
+        """
         # support for legacy behavior
         for layer in self.flattened_layers:
             nb_param = len(layer.weights)
@@ -557,7 +558,7 @@ class Sequential(Model):
                 metrics=None,
                 sample_weight_mode=None,
                 **kwargs):
-        '''Configures the learning process.
+        """Configures the learning process.
 
         # Arguments
             optimizer: str (name of optimizer) or optimizer object.
@@ -583,7 +584,7 @@ class Sequential(Model):
                               loss='categorical_crossentropy',
                               metrics=['accuracy'])
             ```
-        '''
+        """
         # create the underlying model
         self.build()
         # legacy kwarg support
@@ -652,7 +653,7 @@ class Sequential(Model):
             a record of training loss values and metrics values
             at successive epochs, as well as validation loss values
             and validation metrics values (if applicable).
-        '''
+        """
         if self.model is None:
             raise RuntimeError('The model needs to be compiled '
                                'before being used.')
@@ -681,7 +682,7 @@ class Sequential(Model):
 
     def evaluate(self, x, y, batch_size=32, verbose=1,
                  sample_weight=None, **kwargs):
-        '''Computes the loss on some input data, batch by batch.
+        """Computes the loss on some input data, batch by batch.
 
         # Arguments
             x: input data, as a Numpy array or list of Numpy arrays
@@ -696,7 +697,7 @@ class Sequential(Model):
             or list of scalars (if the model computes other metrics).
             The attribute `model.metrics_names` will give you
             the display labels for the scalar outputs.
-        '''
+        """
         if self.model is None:
             raise RuntimeError('The model needs to be compiled '
                                'before being used.')
@@ -716,7 +717,7 @@ class Sequential(Model):
                                    sample_weight=sample_weight)
 
     def predict(self, x, batch_size=32, verbose=0):
-        '''Generates output predictions for the input samples,
+        """Generates output predictions for the input samples,
         processing the samples in a batched way.
 
         # Arguments
@@ -726,21 +727,21 @@ class Sequential(Model):
 
         # Returns
             A Numpy array of predictions.
-        '''
+        """
         if self.model is None:
             self.build()
         return self.model.predict(x, batch_size=batch_size, verbose=verbose)
 
     def predict_on_batch(self, x):
-        '''Returns predictions for a single batch of samples.
-        '''
+        """Returns predictions for a single batch of samples.
+        """
         if self.model is None:
             self.build()
         return self.model.predict_on_batch(x)
 
     def train_on_batch(self, x, y, class_weight=None,
                        sample_weight=None, **kwargs):
-        '''Single gradient update over one batch of samples.
+        """Single gradient update over one batch of samples.
 
         # Arguments
             x: input data, as a Numpy array or list of Numpy arrays
@@ -755,7 +756,7 @@ class Sequential(Model):
             or list of scalars (if the model computes other metrics).
             The attribute `model.metrics_names` will give you
             the display labels for the scalar outputs.
-        '''
+        """
         if self.model is None:
             raise RuntimeError('The model needs to be compiled '
                                'before being used.')
@@ -775,7 +776,7 @@ class Sequential(Model):
 
     def test_on_batch(self, x, y,
                       sample_weight=None, **kwargs):
-        '''Evaluates the model over a single batch of samples.
+        """Evaluates the model over a single batch of samples.
 
         # Arguments
             x: input data, as a Numpy array or list of Numpy arrays
@@ -788,7 +789,7 @@ class Sequential(Model):
             or list of scalars (if the model computes other metrics).
             The attribute `model.metrics_names` will give you
             the display labels for the scalar outputs.
-        '''
+        """
         if self.model is None:
             raise RuntimeError('The model needs to be compiled '
                                'before being used.')
@@ -806,7 +807,7 @@ class Sequential(Model):
                                         sample_weight=sample_weight)
 
     def predict_proba(self, x, batch_size=32, verbose=1):
-        '''Generates class probability predictions for the input samples
+        """Generates class probability predictions for the input samples
         batch by batch.
 
         # Arguments
@@ -817,7 +818,7 @@ class Sequential(Model):
 
         # Returns
             A Numpy array of probability predictions.
-        '''
+        """
         preds = self.predict(x, batch_size, verbose)
         if preds.min() < 0. or preds.max() > 1.:
             warnings.warn('Network returning invalid probability values. '
@@ -827,7 +828,7 @@ class Sequential(Model):
         return preds
 
     def predict_classes(self, x, batch_size=32, verbose=1):
-        '''Generate class predictions for the input samples
+        """Generate class predictions for the input samples
         batch by batch.
 
         # Arguments
@@ -838,7 +839,7 @@ class Sequential(Model):
 
         # Returns
             A numpy array of class predictions.
-        '''
+        """
         proba = self.predict(x, batch_size=batch_size, verbose=verbose)
         if proba.shape[-1] > 1:
             return proba.argmax(axis=-1)
@@ -850,7 +851,7 @@ class Sequential(Model):
                       validation_data=None, nb_val_samples=None, test_data=None,
                       class_weight=None, max_q_size=10, nb_worker=1,
                       pickle_safe=False, initial_epoch=0, **kwargs):
-        '''Fits the model on data generated batch-by-batch by
+        """Fits the model on data generated batch-by-batch by
         a Python generator.
         The generator is run in parallel to the model, for efficiency.
         For instance, this allows you to do real-time data augmentation
@@ -907,7 +908,7 @@ class Sequential(Model):
             model.fit_generator(generate_arrays_from_file('/my_file.txt'),
                                 samples_per_epoch=10000, nb_epoch=10)
         ```
-        '''
+        """
         if self.model is None:
             raise RuntimeError('The model needs to be compiled '
                                'before being used.')
@@ -946,7 +947,7 @@ class Sequential(Model):
     def evaluate_generator(self, generator, val_samples,
                            max_q_size=10, nb_worker=1,
                            pickle_safe=False, **kwargs):
-        '''Evaluates the model on a data generator. The generator should
+        """Evaluates the model on a data generator. The generator should
         return the same kind of data as accepted by `test_on_batch`.
 
         # Arguments
@@ -962,7 +963,7 @@ class Sequential(Model):
                 this implementation relies on multiprocessing, you should not pass non
                 non picklable arguments to the generator as they can't be passed
                 easily to children processes.
-        '''
+        """
         if self.model is None:
             raise RuntimeError('The model needs to be compiled '
                                'before being used.')
@@ -991,7 +992,7 @@ class Sequential(Model):
 
     def predict_generator(self, generator, val_samples,
                           max_q_size=10, nb_worker=1, pickle_safe=False):
-        '''Generates predictions for the input samples from a data generator.
+        """Generates predictions for the input samples from a data generator.
         The generator should return the same kind of data as accepted by
         `predict_on_batch`.
 
@@ -1008,7 +1009,7 @@ class Sequential(Model):
 
         # Returns
             A Numpy array of predictions.
-        '''
+        """
         if self.model is None:
             self.build()
         if nb_worker > 1 and not pickle_safe:
@@ -1021,9 +1022,9 @@ class Sequential(Model):
                                             pickle_safe=pickle_safe)
 
     def get_config(self):
-        '''Returns the model configuration
+        """Returns the model configuration
         as a Python list.
-        '''
+        """
         config = []
         if isinstance(self.layers[0], Merge):
             assert hasattr(self.layers[0], 'layers')
@@ -1045,8 +1046,8 @@ class Sequential(Model):
 
     @classmethod
     def from_config(cls, config, layer_cache=None):
-        '''Supports legacy formats
-        '''
+        """Supports legacy formats
+        """
         from keras.utils.layer_utils import layer_from_config
         from keras.layers import Merge
 
