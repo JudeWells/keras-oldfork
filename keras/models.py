@@ -1045,7 +1045,6 @@ class Sequential(Model):
                       workers=1,
                       pickle_safe=False,
                       initial_epoch=0):
-        """Fits the model on data generated batch-by-batch by a Python generator.
 
         The generator is run in parallel to the model, for efficiency.
         For instance, this allows you to do real-time data augmentation
