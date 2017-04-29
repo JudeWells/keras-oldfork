@@ -309,9 +309,9 @@ def list_pictures(directory, ext='jpg|jpeg|bmp|png'):
             if re.match('([\w]+\.(?:' + ext + '))', f)]
 
 
-#import numpy as np
-#from scipy.ndimage.interpolation import map_coordinates
-#from scipy.ndimage.filters import gaussian_filter
+import numpy as np
+from scipy.ndimage.interpolation import map_coordinates
+from scipy.ndimage.filters import gaussian_filter
 
 def elastic_transform(image, alpha, sigma, random_state=None):
     """Elastic deformation of images as described in [Simard2003]_.
@@ -330,28 +330,50 @@ def elastic_transform(image, alpha, sigma, random_state=None):
     indices = np.reshape(x+dx, (-1, 1)), np.reshape(y+dy, (-1, 1))
     return map_coordinates(image, indices, order=1).reshape(shape)
 
-def random_crop(image, crop_size):
-    height, width = image.shape[1:]
-    dy, dx = crop_size
-    if width < dx or height < dy:
-        return None
-    x = np.random.randint(0, width - dx + 1)
-    y = np.random.randint(0, height - dy + 1)
-    return image[:, y:(y+dy), x:(x+dx)]
+def center_crop(x, center_crop_size, data_format, **kwargs):
+    if data_format == 'channels_first':
+        centerh, centerw = x.shape[1] // 2, x.shape[2] // 2
+    elif data_format == 'channels_last':
+        centerh, centerw = x.shape[0] // 2, x.shape[1] // 2
+    lh, lw = center_crop_size[0] // 2, center_crop_size[1] // 2
+    rh, rw = center_crop_size[0] - lh, center_crop_size[1] - lw
 
-def random_pad(image, new_size):
-    height, width = image.shape[1:]
-    new_height, new_width = new_size
-    if new_width < width or new_height < height:
-        return None
-    dx = new_width - width
-    dy = new_height - height
-    left_pad = np.random.randint(0, dx)
-    right_pad = dx - left_pad
-    top_pad = np.random.randint(0, dy)
-    bottom_pad = dy - top_pad
-    return np.lib.pad(image, ((0,0),(left_pad,right_pad),(top_pad,bottom_pad)),
-     'constant',constant_values=0)
+    h_start, h_end = centerh - lh, centerh + rh
+    w_start, w_end = centerw - lw, centerw + rw
+    if data_format == 'channels_first':
+        return x[:, h_start:h_end, w_start:w_end]
+    elif data_format == 'channels_last':
+        return x[h_start:h_end, w_start:w_end, :]
+
+def random_crop(x, random_crop_size, data_format, sync_seed=None, **kwargs):
+    np.random.seed(sync_seed)
+    if data_format == 'channels_first':
+        h, w = x.shape[1], x.shape[2]
+    elif data_format == 'channels_last':
+        h, w = x.shape[0], x.shape[1]
+    rangeh = (h - random_crop_size[0]) // 2
+    rangew = (w - random_crop_size[1]) // 2
+    offseth = 0 if rangeh == 0 else np.random.randint(rangeh)
+    offsetw = 0 if rangew == 0 else np.random.randint(rangew)
+
+    h_start, h_end = offseth, offseth + random_crop_size[0]
+    w_start, w_end = offsetw, offsetw + random_crop_size[1]
+    if data_format == 'channels_first':
+        return x[:, h_start:h_end, w_start:w_end]
+    elif data_format == 'channels_last':
+        return x[h_start:h_end, w_start:w_end, :]
+
+def random_pad(image, new_size, data_format):
+    if data_format == 'channels_first':
+        img_w, img_h = image.shape[1:]
+    elif data_format == 'channels_last':
+        img_w, img_h = image.shape[:2]
+        pad_w = max(new_size[0] - img_w, 0)
+        pad_h = max(new_size[1] - img_h, 0)
+    if data_format == 'channels_first':
+        return np.lib.pad(x, ((0, 0), (pad_h / 2, pad_h - pad_h / 2), (pad_w / 2, pad_w - pad_w / 2)), 'constant', constant_values=0.)
+    elif data_format == 'channels_last':
+        return np.lib.pad(x, ((pad_h / 2, pad_h - pad_h / 2), (pad_w / 2, pad_w - pad_w / 2), (0, 0)), 'constant', constant_values=0.)
 
 class ImageDataGenerator(object):
     """Generate minibatches of image data with real-time data augmentation.
@@ -413,9 +435,9 @@ class ImageDataGenerator(object):
                  pad=None,
                  crop=None,
                  preprocessing_function=None,
-                 dim_ordering='default'):
-        if dim_ordering == 'default':
-            dim_ordering = K.image_dim_ordering()
+                 data_format ='default'):
+        if data_format == 'default':
+            self.data_format = K.image_data_format()
         self.featurewise_center = featurewise_center
         self.samplewise_center = samplewise_center
         self.featurewise_std_normalization = featurewise_std_normalization
@@ -607,14 +629,14 @@ class ImageDataGenerator(object):
                                      self.elastic_transform['sigma'])
 
         if self.pad is not None:
-            x = random_pad(x, self.pad)
+            x = random_pad(x, self.pad, self.data_format)
 
         if self.crop is not None:
-            x = random_crop(x, self.crop)
+            if 'crop_mode' in self.__dict__ and self.crop_mode == "center":
+                x = center_crop(x, self.crop, self.data_format)
+            else:
+                x = random_crop(x, self.crop, self.data_format)
 
-        # TODO:
-        # channel-wise normalization
-        # barrel/fisheye
         return x
 
     def fit(self, x,
