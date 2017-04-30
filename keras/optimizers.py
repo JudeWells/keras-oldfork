@@ -16,43 +16,6 @@ def clip_norm(g, c, n):
     return g
 
 
-def optimizer_from_config(config, custom_objects=None):
-    """Instantiate an optimizer given a config dictionary.
-
-    # Arguments
-        config: Config dictionary
-            (e.g. output of `optimizer.get_config()`).
-        custom_objects: Optional dictionary of custom optimizer classes.
-
-    # Returns
-        An optimizer instance.
-
-    # Raises
-        ValueError: in case of invalid optimizer config.
-    """
-    all_classes = {
-        'sgd': SGD,
-        'rmsprop': RMSprop,
-        'adagrad': Adagrad,
-        'adadelta': Adadelta,
-        'adam': Adam,
-        'adamax': Adamax,
-        'nadam': Nadam,
-        'wame': WAME,
-        'tfoptimizer': TFOptimizer,
-    }
-    class_name = config['class_name']
-    if custom_objects and class_name in custom_objects:
-        cls = custom_objects[class_name]
-    elif class_name in get_custom_objects():
-        cls = get_custom_objects()[class_name]
-    else:
-        if class_name.lower() not in all_classes:
-            raise ValueError('Optimizer class not found:', class_name)
-        cls = all_classes[class_name.lower()]
-    return cls.from_config(config['config'])
-
-
 class Optimizer(object):
     """Abstract optimizer base class.
 
@@ -775,6 +738,7 @@ def deserialize(config, custom_objects=None):
         'adam': Adam,
         'adamax': Adamax,
         'nadam': Nadam,
+        'wame': WAME,
         'tfoptimizer': TFOptimizer,
     }
     # Make deserialization case-insensitive for built-in optimizers.
