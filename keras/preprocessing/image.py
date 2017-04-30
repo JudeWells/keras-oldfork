@@ -396,12 +396,12 @@ def random_pad(image, new_size, data_format):
         img_w, img_h = image.shape[1:]
     elif data_format == 'channels_last':
         img_w, img_h = image.shape[:2]
-        pad_w = max(new_size[0] - img_w, 0)
-        pad_h = max(new_size[1] - img_h, 0)
+    pad_w = max(new_size[0] - img_w, 0)
+    pad_h = max(new_size[1] - img_h, 0)
     if data_format == 'channels_first':
-        return np.lib.pad(x, ((0, 0), (pad_h / 2, pad_h - pad_h / 2), (pad_w / 2, pad_w - pad_w / 2)), 'constant', constant_values=0.)
+        return np.lib.pad(image, ((0, 0), (pad_h / 2, pad_h - pad_h / 2), (pad_w / 2, pad_w - pad_w / 2)), 'constant', constant_values=0.)
     elif data_format == 'channels_last':
-        return np.lib.pad(x, ((pad_h / 2, pad_h - pad_h / 2), (pad_w / 2, pad_w - pad_w / 2), (0, 0)), 'constant', constant_values=0.)
+        return np.lib.pad(image, ((pad_h / 2, pad_h - pad_h / 2), (pad_w / 2, pad_w - pad_w / 2), (0, 0)), 'constant', constant_values=0.)
 
 class ImageDataGenerator(object):
     """Generate minibatches of image data with real-time data augmentation.
@@ -483,6 +483,7 @@ class ImageDataGenerator(object):
         self.vertical_flip = vertical_flip
         self.rescale = rescale
         self.preprocessing_function = preprocessing_function
+        self.elastic_transform = elastic_transform
 
         if data_format not in {'channels_last', 'channels_first'}:
             raise ValueError('data_format should be "channels_last" (channel after row and '
@@ -503,10 +504,6 @@ class ImageDataGenerator(object):
 
         if self.elastic_transform is None or len(self.elastic_transform) == 2:
             self.elastic_transform = elastic_transform
-        if dim_ordering not in {'tf', 'th'}:
-            raise ValueError('dim_ordering should be "tf" (channel after row and '
-                             'column) or "th" (channel before row and column). '
-                             'Received arg: ', dim_ordering)
         self.mean = None
         self.std = None
         self.principal_components = None

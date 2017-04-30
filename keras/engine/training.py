@@ -2015,28 +2015,33 @@ class Model(Container):
                         for l, o in zip(out_labels, val_outs):
                             epoch_logs['val_' + l] = o
 
+                    if steps_done >= steps_per_epoch and do_test:
+                        if test_gen:
+                            test_outs = self.evaluate_generator(
+                                test_data,
+                                test_steps,
+                                max_q_size=max_q_size,
+                                workers=workers,
+                                pickle_safe=pickle_safe)
+                        else:
+                            # No need for try/except because
+                            # data has already been validated.
+                            test_outs = self.evaluate(
+                                test_x, test_y,
+                                batch_size=batch_size,
+                                sample_weight=test_sample_weights,
+                                verbose=0)
+                        if not isinstance(test_outs, list):
+                            test_outs = [test_outs]
+                        # Same labels assumed.
+                        for l, o in zip(out_labels, test_outs):
+                            epoch_logs['test_' + l] = o
+
                 callbacks.on_epoch_end(epoch, epoch_logs)
                 epoch += 1
                 if callback_model.stop_training:
                     break
 
-                if samples_seen >= samples_per_epoch and do_test:
-                    if test_gen:
-                        test_outs = self.evaluate_generator(test_data,
-                                                           nb_test_samples,
-                                                           max_q_size=max_q_size)
-                    else:
-                        # no need for try/except because
-                        # data has already been validated
-                        test_outs = self.evaluate(test_x, test_y,
-                                                 batch_size=batch_size,
-                                                 sample_weight=test_sample_weights,
-                                                 verbose=0)
-                    if type(test_outs) is not list:
-                        test_outs = [test_outs]
-                    # same labels assumed
-                    for l, o in zip(out_labels, test_outs):
-                        epoch_logs['test_' + l] = o
 
         finally:
             if enqueuer is not None:

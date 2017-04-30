@@ -1023,11 +1023,11 @@ class Sequential(Model):
         else:
             return (proba > 0.5).astype('int32')
 
-    def fit_generator(self, generator, samples_per_epoch, nb_epoch,
+    def fit_generator(self, generator, steps_per_epoch, epochs,
                       verbose=1, callbacks=None,
-                      validation_data=None, nb_val_samples=None, test_data=None,
-                      class_weight=None, max_q_size=10, nb_worker=1,
-                      pickle_safe=False, initial_epoch=0, **kwargs):
+                      validation_data=None, validation_steps=None, test_data=None,
+                      test_steps=None, class_weight=None, max_q_size=10,
+                      workers=1, pickle_safe=False, initial_epoch=0, **kwargs):
         """Fits the model on data generated batch-by-batch by
         a Python generator.
     @interfaces.legacy_generator_methods_support
@@ -1039,6 +1039,7 @@ class Sequential(Model):
                       validation_data=None,
                       validation_steps=None,
                       test_data=None,
+                      test_steps=None,
                       validation_data=None,
                       class_weight=None,
                       max_q_size=10,
@@ -1077,6 +1078,16 @@ class Sequential(Model):
                 at the end of every epoch. It should typically
                 be equal to the number of unique samples of your
                 validation dataset divided by the batch size.
+            test_data: This can be either
+                - A generator for the test data
+                - A tuple (inputs, targets)
+                - A tuple (inputs, targets, sample_weights).
+            test_steps: Only relevant if `test_data`
+                is a generator.
+                Number of steps to yield from test generator
+                at the end of every epoch. It should typically
+                be equal to the number of unique samples of your
+                test dataset divided by the batch size.
             class_weight: Dictionary mapping class indices to a weight
                 for the class.
             max_q_size: Maximum size for the generator queue

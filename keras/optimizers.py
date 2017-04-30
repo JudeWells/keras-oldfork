@@ -629,7 +629,7 @@ class WAME(Optimizer):
                 acc_ms, acc_vs, prev_grads, prev_param):
 
             change = pg * g
-            change_below_zero = K.lesser(change,0.)
+            change_below_zero = K.less(change,0.)
             change_above_zero = K.greater(change,0.)
             a_t = K.switch(
                 change_below_zero,
