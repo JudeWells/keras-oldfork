@@ -675,7 +675,7 @@ class Model(Container):
     """
 
     def compile(self, optimizer, loss, metrics=None, loss_weights=None,
-                sample_weight_mode=None, **kwargs):
+                sample_weight_mode=None, update_inputs=False, **kwargs):
         """Configures the model for training.
 
         # Arguments
@@ -703,6 +703,9 @@ class Model(Container):
                 If the model has multiple outputs, you can use a different
                 `sample_weight_mode` on each output by passing a
                 dictionary or a list of modes.
+            update_inputs: if you want the gradient of the error WRT to the
+                inputs to be given to the update rule, causing the data to be
+                altered based on the input sensitivity.
             **kwargs: when using the Theano backend, these arguments
                 are passed into K.function. Ignored for Tensorflow backend.
 
@@ -715,6 +718,7 @@ class Model(Container):
         self.sample_weight_mode = sample_weight_mode
         self.loss = loss
         self.loss_weights = loss_weights
+        self.update_inputs = update_inputs
 
         # Prepare loss functions.
         if isinstance(loss, dict):
@@ -981,6 +985,7 @@ class Model(Container):
         self._function_kwargs = kwargs
 
         self.train_function = None
+        self.update_inputs_function = None
         self.test_function = None
         self.predict_function = None
 
@@ -994,7 +999,27 @@ class Model(Container):
                 trainable_weights.sort(key=lambda x: x.name)
         self._collected_trainable_weights = trainable_weights
 
-    def _make_train_function(self):
+    def _make_update_inputs_function(self):
+        if not hasattr(self, 'update_inputs_function'):
+            raise RuntimeError('You must compile your model before using it.')
+        if self.update_inputs_function is None:
+            inputs = self._feed_inputs + self._feed_targets + self._feed_sample_weights
+            if self.uses_learning_phase and not isinstance(K.learning_phase(), int):
+                inputs += [K.learning_phase()]
+            grads = self.optimizer.get_gradients(self.total_loss, inputs)
+            new_inputs = []
+            for p, g, in zip(inputs, grads):
+                new_p = p + g
+                new_inputs.append(new_p)
+            #input_updates = self.optimizer.get_updates(
+            #    input_var,
+            #    self.constraints,
+            #    self.total_loss)
+            self.update_inputs_function = K.function(inputs = inputs,
+                                             outputs = new_inputs,
+                                             **self._function_kwargs)
+
+    def _make_train_function(self, x = None):
         if not hasattr(self, 'train_function'):
             raise RuntimeError('You must compile your model before using it.')
         if self.train_function is None:
@@ -1008,9 +1033,9 @@ class Model(Container):
                 self.total_loss)
             updates = self.updates + training_updates
             # Gets loss and metrics. Updates weights at each call.
-            self.train_function = K.function(inputs,
-                                             [self.total_loss] + self.metrics_tensors,
-                                             updates=updates,
+            self.train_function = K.function(inputs = inputs,
+                                             outputs = [self.total_loss] + self.metrics_tensors,
+                                             updates = updates,
                                              **self._function_kwargs)
 
     def _make_test_function(self):
@@ -1045,8 +1070,9 @@ class Model(Container):
 
     def _fit_loop(self, f, ins, out_labels=None, batch_size=32,
                   epochs=100, verbose=1, callbacks=None,
-                  val_f=None, val_ins=None, test_f=None, test_ins=None,
-                  shuffle=True, callback_metrics=None, initial_epoch=0):
+                  val_f=None, val_ins=None, test_f=None, 
+                  test_ins=None, shuffle=True, callback_metrics=None,
+                  initial_epoch=0):
         """Abstract fit function for `f(ins)`.
         Assume that f returns a list, labeled by out_labels.
 
@@ -1152,6 +1178,8 @@ class Model(Container):
                 batch_logs['size'] = len(batch_ids)
                 callbacks.on_batch_begin(batch_index, batch_logs)
                 outs = f(ins_batch)
+                if self.update_inputs:
+                    ins_batch = self.update_inputs_function(ins_batch)
                 if not isinstance(outs, list):
                     outs = [outs]
                 for l, o in zip(out_labels, outs):
@@ -1524,6 +1552,7 @@ class Model(Container):
         else:
             ins = x + y + sample_weights
         self._make_train_function()
+        self._make_update_inputs_function()
         f = self.train_function
 
         # Prepare display labels.
@@ -1686,6 +1715,7 @@ class Model(Container):
         else:
             ins = x + y + sample_weights
         self._make_train_function()
+        self._make_update_inputs_function()
         outputs = self.train_function(ins)
         if len(outputs) == 1:
             return outputs[0]
@@ -1851,6 +1881,7 @@ class Model(Container):
         do_validation = bool(validation_data)
         do_test = bool(test_data)
         self._make_train_function()
+        self._make_update_inputs_function()
         if do_validation or do_test:
             self._make_test_function()
 
