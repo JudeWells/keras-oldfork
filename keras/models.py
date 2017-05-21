@@ -29,13 +29,12 @@ except ImportError:
 
 
 def save_model(model, filepath, overwrite=True, include_optimizer=True):
+    f = h5py.File(filepath, 'w')
+    save_model_to_hdf5_group(model, f, overwrite, include_optimizer)
+
+def save_model_to_hdf5_group(model, f, overwrite=True, include_optimizer=True):
     """Save a model to a HDF5 file.
 
-def save_model(model, filepath, overwrite=True):
-    f = h5py.File(filepath, 'w')
-    save_model_to_hdf5_group(model, f, overwrite)
-
-def save_model_to_hdf5_group(model, f, overwrite=True):
     The saved model contains:
         - the model's configuration (topology)
         - the model's weights
