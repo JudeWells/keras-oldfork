@@ -663,8 +663,8 @@ class WAME(Optimizer):
                   'beta_a': float(K.get_value(self.beta_a)),
                   'eta_plus': float(K.get_value(self.eta_plus)),
                   'eta_minus': float(K.get_value(self.eta_minus)),
-                  'eta_min': float(K.get_value(self.eta_min)),
-                  'eta_max': float(K.get_value(self.eta_max)),
+                  'eta_min': float(self.eta_min),
+                  'eta_max': float(self.eta_max),
                   'epsilon': self.epsilon}
         base_config = super(WAME, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
