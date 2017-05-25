@@ -190,12 +190,12 @@ def load_model(filepath, custom_objects=None):
         ImportError: if h5py is not available.
         ValueError: In case of an invalid savefile.
     """
+    import h5py
     if h5py is None:
         raise ImportError('`load_model` requires h5py.')
 
     if not custom_objects:
         custom_objects = {}
-    import h5py
     f = h5py.File(filepath, mode='r')
     return load_model_from_hdf5_group(f, custom_objects)
 
@@ -237,8 +237,6 @@ def load_model_from_hdf5_group(f, custom_objects={}):
         if obj in custom_objects:
             return custom_objects[obj]
         return obj
-
-    f = h5py.File(filepath, mode='r')
 
     # instantiate model
     model_config = f.attrs.get('model_config')
