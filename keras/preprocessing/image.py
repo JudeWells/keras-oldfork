@@ -681,8 +681,11 @@ class ImageDataGenerator(object):
                 x = flip_axis(x, img_row_axis)
 
         if self.elastic_transform is not None:
-            x = elastic_transform(x, self.elastic_transform['alpha'],
+            x = np.asarray([
+                    elastic_transform(xx, self.elastic_transform['alpha'],
                                      self.elastic_transform['sigma'])
+                    for xx in x
+                ])
 
         if self.pad is not None:
             x = random_pad(x, self.pad, self.data_format)
