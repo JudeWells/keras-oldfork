@@ -596,7 +596,7 @@ class ImageDataGenerator(object):
                               'first by calling `.fit(numpy_data)`.')
         return x
 
-    def random_transform(self, x):
+    def random_transform(self, x, random_state = None):
         """Randomly augment a single image tensor.
 
         # Arguments
@@ -609,6 +609,8 @@ class ImageDataGenerator(object):
         img_row_axis = self.row_axis - 1
         img_col_axis = self.col_axis - 1
         img_channel_axis = self.channel_axis - 1
+        if random_state is None:
+            random_state = np.random.RandomState(None)
 
         # use composition of homographies
         # to generate final transform that needs to be applied
@@ -681,11 +683,11 @@ class ImageDataGenerator(object):
                 x = flip_axis(x, img_row_axis)
 
         if self.elastic_transform is not None:
-            x = np.asarray([
-                    elastic_transform(xx, self.elastic_transform['alpha'],
-                                     self.elastic_transform['sigma'])
-                    for xx in x
-                ])
+            x = np.asarray([elastic_transform(xx,
+                                              self.elastic_transform['alpha'],
+                                              self.elastic_transform['sigma'],
+                                              random_state)
+                            for xx in x])
 
         if self.pad is not None:
             x = random_pad(x, self.pad, self.data_format)
@@ -738,10 +740,13 @@ class ImageDataGenerator(object):
 
         x = np.copy(x)
         if augment:
+            random_state = np.random.RandomState(None)
             ax = np.zeros(tuple([rounds * x.shape[0]] + list(x.shape)[1:]), dtype=K.floatx())
             for r in range(rounds):
                 for i in range(x.shape[0]):
-                    ax[i + r * x.shape[0]] = self.random_transform(x[i])
+                    ax[i + r * x.shape[0]] = self.random_transform(x[i],
+                                                                   random_state)
+            print("done transforming")
             x = ax
 
         if self.featurewise_center:
@@ -890,9 +895,11 @@ class NumpyArrayIterator(Iterator):
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros(tuple([current_batch_size] + list(self.x.shape)[1:]), dtype=K.floatx())
+        random_state = np.random.RandomState(None)
         for i, j in enumerate(index_array):
             x = self.x[j]
-            x = self.image_data_generator.random_transform(x.astype(K.floatx()))
+            x = self.image_data_generator.random_transform(x.astype(K.floatx()),
+                                                           random_state)
             x = self.image_data_generator.standardize(x)
             batch_x[i] = x
         if self.save_to_dir:

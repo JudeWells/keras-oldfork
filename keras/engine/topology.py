@@ -2212,10 +2212,10 @@ class Container(Layer):
                     if all([hasattr(x, '_keras_shape') for x in computed_tensors]):
                         if len(computed_tensors) == 1:
                             shapes = _to_list(layer.compute_output_shape(computed_tensors[0]._keras_shape))
-                            uses_learning_phase = computed_tensors[0]._uses_learning_phase
+                            uses_learning_phase = hasattr(computed_tensors[0], '_uses_learning_phase') and computed_tensors[0]._uses_learning_phase
                         else:
                             shapes = _to_list(layer.compute_output_shape([x._keras_shape for x in computed_tensors]))
-                            uses_learning_phase = any([x._uses_learning_phase for x in computed_tensors])
+                            uses_learning_phase = any([hasattr(x, '_uses_learning_phase') and x._uses_learning_phase for x in computed_tensors])
                         for x, s in zip(output_tensors, shapes):
                             x._keras_shape = s
                             x._uses_learning_phase = getattr(x, '_uses_learning_phase', False) or uses_learning_phase

@@ -675,7 +675,8 @@ class Model(Container):
     """
 
     def compile(self, optimizer, loss, metrics=None, loss_weights=None,
-                sample_weight_mode=None, update_inputs=False, **kwargs):
+                sample_weight_mode=None, update_inputs=False,
+                update_inputs_lr = 1,  **kwargs):
         """Configures the model for training.
 
         # Arguments
@@ -706,6 +707,7 @@ class Model(Container):
             update_inputs: if you want the gradient of the error WRT to the
                 inputs to be given to the update rule, causing the data to be
                 altered based on the input sensitivity.
+            update_inputs_lr: the learning rate at which to update the inputs
             **kwargs: when using the Theano backend, these arguments
                 are passed into K.function. Ignored for Tensorflow backend.
 
@@ -719,6 +721,7 @@ class Model(Container):
         self.loss = loss
         self.loss_weights = loss_weights
         self.update_inputs = update_inputs
+        self.update_inputs_lr = update_inputs_lr
 
         # Prepare loss functions.
         if isinstance(loss, dict):
@@ -999,7 +1002,7 @@ class Model(Container):
                 trainable_weights.sort(key=lambda x: x.name)
         self._collected_trainable_weights = trainable_weights
 
-    def _make_update_inputs_function(self):
+    def _make_update_inputs_function(self, epsilon=1.):
         if not hasattr(self, 'update_inputs_function'):
             raise RuntimeError('You must compile your model before using it.')
         if self.update_inputs_function is None:
@@ -1009,15 +1012,19 @@ class Model(Container):
             grads = self.optimizer.get_gradients(self.total_loss, inputs)
             new_inputs = []
             for p, g, in zip(inputs, grads):
-                new_p = p + g
+                if self.update_inputs_lr:
+                    lr = self.update_inputs_lr
+                else:
+                    lr = 1
+                new_p = p + lr * g
                 new_inputs.append(new_p)
             #input_updates = self.optimizer.get_updates(
             #    input_var,
             #    self.constraints,
             #    self.total_loss)
             self.update_inputs_function = K.function(inputs = inputs,
-                                             outputs = new_inputs,
-                                             **self._function_kwargs)
+                                                     outputs = new_inputs,
+                                                     **self._function_kwargs)
 
     def _make_train_function(self, x = None):
         if not hasattr(self, 'train_function'):
