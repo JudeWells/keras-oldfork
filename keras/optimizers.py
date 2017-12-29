@@ -715,8 +715,9 @@ class RPROP(Optimizer):
             a_t = a * K.switch(change_above_zero, self.eta_plus,
                     K.switch(change_below_zero, self.eta_minus, 1.))
             a_clipped = K.clip(a_t, self.eta_min, self.eta_max)
-            g = K.switch(change_above_zero, g, 0.)
-            p_t = p - lr * K.sign(g) * a_clipped
+            p_t = p - K.switch(change_above_zero, 
+                    lr * K.sign(g) * a_clipped, 0.)
+            #new_p = K.switch(K.equal(change, 0.), pp, p_t)
             new_p = p_t #K.switch(K.equal(pg, 0.), pp, p_t)
             # apply constraints
             if p in constraints:
